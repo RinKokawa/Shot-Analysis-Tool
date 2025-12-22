@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { onMounted, onBeforeUnmount, ref } from 'vue'
 import PlayerPage from './components/PlayerPage.vue'
 
 type RecentProject = {
@@ -10,6 +10,10 @@ type RecentProject = {
 
 const videoUrl = ref<string | null>(null)
 const recentProjects = ref<RecentProject[]>([])
+const contextMenuVisible = ref(false)
+const contextMenuX = ref(0)
+const contextMenuY = ref(0)
+const contextMenuItem = ref<RecentProject | null>(null)
 
 const revokeIfBlob = (url: string | null) => {
   if (url && url.startsWith('blob:')) {
@@ -40,10 +44,41 @@ const addRecentProject = async (file: File) => {
 
 const openRecent = async (item: RecentProject) => {
   if (!window.ipcRenderer?.invoke) return
-  const fileUrl = await window.ipcRenderer.invoke('recent-projects:toFileUrl', item.path)
+  const fileUrl = await window.ipcRenderer.invoke('recent-projects:toAppFileUrl', item.path)
   if (typeof fileUrl !== 'string') return
   revokeIfBlob(videoUrl.value)
   videoUrl.value = fileUrl
+}
+
+const onContextMenu = (event: MouseEvent, item: RecentProject) => {
+  event.preventDefault()
+  contextMenuVisible.value = true
+  contextMenuX.value = event.clientX
+  contextMenuY.value = event.clientY
+  contextMenuItem.value = item
+}
+
+const closeContextMenu = () => {
+  contextMenuVisible.value = false
+  contextMenuItem.value = null
+}
+
+const deleteRecent = async () => {
+  const item = contextMenuItem.value
+  if (!item || !window.ipcRenderer?.invoke) return
+  const result = await window.ipcRenderer.invoke('recent-projects:remove', item.path)
+  if (Array.isArray(result)) {
+    recentProjects.value = result as RecentProject[]
+  }
+  closeContextMenu()
+}
+
+const onGlobalClick = () => {
+  if (contextMenuVisible.value) closeContextMenu()
+}
+
+const onGlobalKeydown = (event: KeyboardEvent) => {
+  if (event.key === 'Escape') closeContextMenu()
 }
 
 const onFileChange = async (event: Event) => {
@@ -57,6 +92,16 @@ const onFileChange = async (event: Event) => {
 }
 
 onMounted(loadRecentProjects)
+
+onMounted(() => {
+  window.addEventListener('click', onGlobalClick)
+  window.addEventListener('keydown', onGlobalKeydown)
+})
+
+onBeforeUnmount(() => {
+  window.removeEventListener('click', onGlobalClick)
+  window.removeEventListener('keydown', onGlobalKeydown)
+})
 </script>
 <template>
   <div class="app-title" v-if="!videoUrl">
@@ -71,18 +116,30 @@ onMounted(loadRecentProjects)
         :key="item.path"
         class="recent-item"
         @click="openRecent(item)"
+        @contextmenu="onContextMenu($event, item)"
       >
         <div class="recent-name">{{ item.name }}</div>
         <div class="recent-path">{{ item.path }}</div>
       </button>
       <div v-if="recentProjects.length === 0" class="recent-empty">暂无最近项目</div>
     </div>
-  </div>  <label class="select-button" v-if="!videoUrl">
+  </div>
+  <div
+    v-if="contextMenuVisible"
+    class="context-menu"
+    :style="{ top: contextMenuY + 'px', left: contextMenuX + 'px' }"
+    @click.stop
+  >
+    <button class="context-menu-item" @click="deleteRecent">删除</button>
+  </div>
+  <label class="select-button" v-if="!videoUrl">
     <input class="file-input" type="file" accept="video/*" @change="onFileChange" />
     选择视频
   </label>
   <PlayerPage v-if="videoUrl" :src="videoUrl" />
 </template>
+
+
 
 <style scoped>
 .app-title {
@@ -153,6 +210,28 @@ onMounted(loadRecentProjects)
   padding: 12px;
   font-size: 12px;
   color: #999999;
+}
+
+.context-menu {
+  position: fixed;
+  z-index: 1000;
+  background: #ffffff;
+  border: 1px solid #d0d0d0;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  min-width: 120px;
+}
+
+.context-menu-item {
+  width: 100%;
+  padding: 8px 12px;
+  border: none;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+
+.context-menu-item:hover {
+  background: #f2f2f2;
 }
 
 .file-input {

@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain } from 'electron'
+import { app, BrowserWindow, ipcMain, protocol } from 'electron'
 import { createRequire } from 'node:module'
 import { fileURLToPath } from 'node:url'
 import { pathToFileURL } from 'node:url'
@@ -7,6 +7,18 @@ import fs from 'node:fs'
 
 const require = createRequire(import.meta.url)
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
+
+protocol.registerSchemesAsPrivileged([
+  {
+    scheme: 'appfile',
+    privileges: {
+      standard: true,
+      secure: true,
+      supportFetchAPI: true,
+      corsEnabled: true,
+    },
+  },
+])
 
 // The built directory structure
 //
@@ -94,7 +106,29 @@ app.on('activate', () => {
   }
 })
 
-app.whenReady().then(createWindow)
+app.whenReady().then(() => {
+  protocol.registerFileProtocol('appfile', (request, callback) => {
+    try {
+      const url = new URL(request.url)
+      let filePath = ''
+      if (process.platform === 'win32') {
+        if (url.hostname) {
+          filePath = `${url.hostname}:${url.pathname}`
+        } else {
+          filePath = url.pathname
+        }
+        filePath = decodeURIComponent(filePath).replace(/\//g, '\\')
+      } else {
+        filePath = decodeURIComponent(url.pathname)
+      }
+      callback({ path: path.normalize(filePath) })
+    } catch {
+      callback({ error: -6 })
+    }
+  })
+
+  createWindow()
+})
 
 ipcMain.handle('recent-projects:get', () => readRecentProjects())
 
@@ -113,7 +147,19 @@ ipcMain.handle(
   }
 )
 
+ipcMain.handle('recent-projects:remove', (_event, filePath: string) => {
+  if (!filePath || typeof filePath !== 'string') return readRecentProjects()
+  const next = readRecentProjects().filter((item) => item.path !== filePath)
+  writeRecentProjects(next)
+  return next
+})
+
 ipcMain.handle('recent-projects:toFileUrl', (_event, filePath: string) => {
   if (!filePath || typeof filePath !== 'string') return null
   return pathToFileURL(filePath).toString()
+})
+
+ipcMain.handle('recent-projects:toAppFileUrl', (_event, filePath: string) => {
+  if (!filePath || typeof filePath !== 'string') return null
+  return pathToFileURL(filePath).toString().replace('file:', 'appfile:')
 })
