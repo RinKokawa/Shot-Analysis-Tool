@@ -1,12 +1,30 @@
+<script setup lang="ts">
+import { ref } from 'vue'
+import PlayerPage from './components/PlayerPage.vue'
+
+const videoUrl = ref<string | null>(null)
+
+const onFileChange = (event: Event) => {
+  const input = event.target as HTMLInputElement
+  const file = input.files?.[0]
+  if (!file) return
+
+  if (videoUrl.value) {
+    URL.revokeObjectURL(videoUrl.value)
+  }
+  videoUrl.value = URL.createObjectURL(file)
+}
+</script>
 <template>
-  <div class="app-title">
+  <div class="app-title" v-if="!videoUrl">
     <div class="title-main">拉片分析软件</div>
     <div class="title-sub">请先将视频文件放到统一或单独的文件夹</div>
   </div>
-  <label class="select-button">
-    <input class="file-input" type="file" accept="video/*" />
+  <label class="select-button" v-if="!videoUrl">
+    <input class="file-input" type="file" accept="video/*" @change="onFileChange" />
     选择视频
   </label>
+  <PlayerPage v-if="videoUrl" :src="videoUrl" />
 </template>
 
 <style scoped>
