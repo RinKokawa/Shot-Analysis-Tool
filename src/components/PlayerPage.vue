@@ -1,35 +1,48 @@
 <template>
   <div class="player-page">
     <div class="player-container" :style="containerStyle">
-      <video
-        ref="videoRef"
-        class="player-video"
-        :src="src"
-        controls
-        autoplay
-        @loadedmetadata="onLoadedMetadata"
-      ></video>
-      <div class="resize-handle" @pointerdown="onResizeStart" />
+      <div class="video-area" :style="videoAreaStyle">
+        <video
+          ref="videoRef"
+          class="player-video"
+          :src="src"
+          controls
+          autoplay
+          @loadedmetadata="onLoadedMetadata"
+        ></video>
+        <div class="resize-handle" @pointerdown="onResizeStart" />
+      </div>
+      <WorkArea :width="workWidth" :height="videoHeight" />
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
 import { computed, onMounted, onBeforeUnmount, ref } from 'vue'
+import WorkArea from './WorkArea.vue'
 
 defineProps<{ src: string }>()
 
 const videoRef = ref<HTMLVideoElement | null>(null)
 const aspectRatio = ref(16 / 9)
-const containerWidth = ref(640)
-const containerHeight = ref(360)
+const videoWidth = ref(640)
+const videoHeight = ref(360)
 
 const minWidth = 240
+const viewportWidth = ref(window.innerWidth)
+
+const workWidth = computed(() => Math.max(0, viewportWidth.value - videoWidth.value))
 
 const containerStyle = computed(() => ({
-  width: `${containerWidth.value}px`,
-  height: `${containerHeight.value}px`,
+  width: `${videoWidth.value + workWidth.value}px`,
+  height: `${videoHeight.value}px`,
 }))
+
+const videoAreaStyle = computed(() => ({
+  width: `${videoWidth.value}px`,
+  height: `${videoHeight.value}px`,
+}))
+
 
 const isEditableTarget = (target: EventTarget | null) => {
   if (!(target instanceof HTMLElement)) return false
@@ -53,28 +66,38 @@ const onKeyDown = (event: KeyboardEvent) => {
 
 onMounted(() => {
   window.addEventListener('keydown', onKeyDown)
-  const maxWidth = Math.max(minWidth, Math.min(960, window.innerWidth))
-  containerWidth.value = maxWidth
-  containerHeight.value = Math.round(maxWidth / aspectRatio.value)
+  const maxVideoWidth = Math.max(minWidth, Math.min(960, viewportWidth.value))
+  videoWidth.value = maxVideoWidth
+  videoHeight.value = Math.round(maxVideoWidth / aspectRatio.value)
+  window.addEventListener('resize', onResize)
 })
 
 onBeforeUnmount(() => {
   window.removeEventListener('keydown', onKeyDown)
+  window.removeEventListener('resize', onResize)
 })
+
+const onResize = () => {
+  viewportWidth.value = window.innerWidth
+  if (videoWidth.value > viewportWidth.value) {
+    videoWidth.value = Math.max(minWidth, viewportWidth.value)
+    videoHeight.value = Math.round(videoWidth.value / aspectRatio.value)
+  }
+}
 
 const onLoadedMetadata = () => {
   const video = videoRef.value
   if (!video || !video.videoWidth || !video.videoHeight) return
   aspectRatio.value = video.videoWidth / video.videoHeight
-  containerHeight.value = Math.round(containerWidth.value / aspectRatio.value)
+  videoHeight.value = Math.round(videoWidth.value / aspectRatio.value)
 }
 
 const onResizeStart = (event: PointerEvent) => {
   event.preventDefault()
   const startX = event.clientX
   const startY = event.clientY
-  const startWidth = containerWidth.value
-  const startHeight = containerHeight.value
+  const startWidth = videoWidth.value
+  const startHeight = videoHeight.value
 
   const onMove = (moveEvent: PointerEvent) => {
     const dx = moveEvent.clientX - startX
@@ -83,10 +106,10 @@ const onResizeStart = (event: PointerEvent) => {
     const adjustByY = dy * aspectRatio.value
     const useX = Math.abs(adjustByX) >= Math.abs(adjustByY)
     const nextWidth = startWidth + (useX ? adjustByX : adjustByY)
-    const maxWidth = Math.max(minWidth, window.innerWidth)
-    const clampedWidth = Math.max(minWidth, Math.min(maxWidth, Math.round(nextWidth)))
-    containerWidth.value = clampedWidth
-    containerHeight.value = Math.round(clampedWidth / aspectRatio.value)
+    const maxVideoWidth = Math.max(minWidth, viewportWidth.value)
+    const clampedWidth = Math.max(minWidth, Math.min(maxVideoWidth, Math.round(nextWidth)))
+    videoWidth.value = clampedWidth
+    videoHeight.value = Math.round(clampedWidth / aspectRatio.value)
   }
 
   const onUp = () => {
@@ -114,6 +137,13 @@ const onResizeStart = (event: PointerEvent) => {
 .player-container {
   background: #000000;
   position: relative;
+  display: flex;
+  align-items: stretch;
+}
+
+.video-area {
+  position: relative;
+  background: #000000;
 }
 
 .player-video {
@@ -123,6 +153,7 @@ const onResizeStart = (event: PointerEvent) => {
   background: #000000;
   object-fit: contain;
 }
+
 
 .resize-handle {
   position: absolute;
