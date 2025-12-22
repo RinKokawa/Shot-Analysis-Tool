@@ -1,7 +1,9 @@
-import { app, BrowserWindow } from 'electron'
+import { app, BrowserWindow, ipcMain } from 'electron'
 import { createRequire } from 'node:module'
 import { fileURLToPath } from 'node:url'
+import { pathToFileURL } from 'node:url'
 import path from 'node:path'
+import fs from 'node:fs'
 
 const require = createRequire(import.meta.url)
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
@@ -25,6 +27,33 @@ export const RENDERER_DIST = path.join(process.env.APP_ROOT, 'dist')
 process.env.VITE_PUBLIC = VITE_DEV_SERVER_URL ? path.join(process.env.APP_ROOT, 'public') : RENDERER_DIST
 
 let win: BrowserWindow | null
+
+const recentProjectsFile = () => path.join(app.getPath('userData'), 'recent-projects.json')
+
+type RecentProject = {
+  path: string
+  name: string
+  lastOpened: number
+}
+
+const readRecentProjects = (): RecentProject[] => {
+  try {
+    const raw = fs.readFileSync(recentProjectsFile(), 'utf-8')
+    const parsed = JSON.parse(raw)
+    if (Array.isArray(parsed)) {
+      return parsed.filter(
+        (item) => item && typeof item.path === 'string' && typeof item.name === 'string'
+      )
+    }
+  } catch {
+    // ignore missing or invalid file
+  }
+  return []
+}
+
+const writeRecentProjects = (projects: RecentProject[]) => {
+  fs.writeFileSync(recentProjectsFile(), JSON.stringify(projects, null, 2), 'utf-8')
+}
 
 function createWindow() {
   win = new BrowserWindow({
@@ -66,3 +95,25 @@ app.on('activate', () => {
 })
 
 app.whenReady().then(createWindow)
+
+ipcMain.handle('recent-projects:get', () => readRecentProjects())
+
+ipcMain.handle(
+  'recent-projects:add',
+  (_event, payload: { path?: string; name?: string }) => {
+    if (!payload?.path) return readRecentProjects()
+    const existing = readRecentProjects().filter((item) => item.path !== payload.path)
+    const name = payload.name || path.basename(payload.path)
+    const next: RecentProject[] = [
+      { path: payload.path, name, lastOpened: Date.now() },
+      ...existing,
+    ].slice(0, 10)
+    writeRecentProjects(next)
+    return next
+  }
+)
+
+ipcMain.handle('recent-projects:toFileUrl', (_event, filePath: string) => {
+  if (!filePath || typeof filePath !== 'string') return null
+  return pathToFileURL(filePath).toString()
+})
