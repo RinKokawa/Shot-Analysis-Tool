@@ -3,7 +3,10 @@
     <div class="title-main">拉片分析软件</div>
     <div class="title-sub">请先将视频文件放到统一或单独的文件夹</div>
   </div>
-  <button class="select-button" type="button">选择视频</button>
+  <label class="select-button">
+    <input class="file-input" type="file" accept="video/*" />
+    选择视频
+  </label>
 </template>
 
 <style scoped>
@@ -23,6 +26,10 @@
   margin-top: 6px;
   font-size: 12px;
   color: #666666;
+}
+
+.file-input {
+  display: none;
 }
 
 .select-button {
