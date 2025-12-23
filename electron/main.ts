@@ -80,6 +80,48 @@ const analysisFilePath = (videoPath: string) => {
   return path.join(dirPath, `${safeName}.json`)
 }
 
+type RangeItem = { start: number; end?: number; createdAt: number }
+
+const normalizeRange = (items: unknown): RangeItem[] => {
+  if (!Array.isArray(items)) return []
+  return items
+    .map((item) => {
+      if (!item || typeof item !== 'object') return null
+      const record = item as Record<string, unknown>
+      const start =
+        typeof record.start === 'number'
+          ? record.start
+          : typeof record.time === 'number'
+            ? record.time
+            : null
+      if (start === null) return null
+      const end = typeof record.end === 'number' ? record.end : undefined
+      const createdAt =
+        typeof record.createdAt === 'number' ? record.createdAt : Date.now()
+      return { start, end, createdAt }
+    })
+    .filter((item): item is RangeItem => item !== null)
+}
+
+const appendRange = (items: RangeItem[], start: number): RangeItem[] => {
+  const next = items.slice()
+  const last = next[next.length - 1]
+  if (last && (last.end === undefined || last.end === null)) {
+    last.end = start
+  }
+  next.push({ start, createdAt: Date.now() })
+  return next
+}
+
+const closeOpen = (items: RangeItem[], end: number): RangeItem[] => {
+  const next = items.slice()
+  const last = next[next.length - 1]
+  if (last && (last.end === undefined || last.end === null)) {
+    last.end = end
+  }
+  return next
+}
+
 function createWindow() {
   win = new BrowserWindow({
     icon: path.join(process.env.VITE_PUBLIC, 'electron-vite.svg'),
@@ -188,6 +230,9 @@ ipcMain.handle(
       const data = {
         createdAt: Date.now(),
         notes: [],
+        acts: [],
+        sections: [],
+        shots: [],
       }
       fs.writeFileSync(jsonPath, JSON.stringify(data, null, 2), 'utf-8')
     }
@@ -205,6 +250,66 @@ ipcMain.handle('analysis:read', (_event, payload: { videoPath?: string }) => {
     return null
   }
 })
+
+ipcMain.handle(
+  'analysis:addAct',
+  (_event, payload: { videoPath?: string; time?: number }) => {
+    if (!payload?.videoPath || typeof payload.time !== 'number') return null
+    const jsonPath = analysisFilePath(payload.videoPath)
+    let existing: Record<string, unknown> = {}
+    try {
+      const raw = fs.readFileSync(jsonPath, 'utf-8')
+      existing = JSON.parse(raw)
+    } catch {
+      existing = { createdAt: Date.now(), notes: [], acts: [], sections: [], shots: [] }
+    }
+    const acts = appendRange(normalizeRange(existing.acts), payload.time)
+    const sections = closeOpen(normalizeRange(existing.sections), payload.time)
+    const shots = closeOpen(normalizeRange(existing.shots), payload.time)
+    const next = { ...existing, acts, sections, shots, updatedAt: Date.now() }
+    fs.writeFileSync(jsonPath, JSON.stringify(next, null, 2), 'utf-8')
+    return next
+  }
+)
+
+ipcMain.handle(
+  'analysis:addSection',
+  (_event, payload: { videoPath?: string; time?: number }) => {
+    if (!payload?.videoPath || typeof payload.time !== 'number') return null
+    const jsonPath = analysisFilePath(payload.videoPath)
+    let existing: Record<string, unknown> = {}
+    try {
+      const raw = fs.readFileSync(jsonPath, 'utf-8')
+      existing = JSON.parse(raw)
+    } catch {
+      existing = { createdAt: Date.now(), notes: [], acts: [], sections: [], shots: [] }
+    }
+    const sections = appendRange(normalizeRange(existing.sections), payload.time)
+    const shots = closeOpen(normalizeRange(existing.shots), payload.time)
+    const next = { ...existing, sections, shots, updatedAt: Date.now() }
+    fs.writeFileSync(jsonPath, JSON.stringify(next, null, 2), 'utf-8')
+    return next
+  }
+)
+
+ipcMain.handle(
+  'analysis:addShot',
+  (_event, payload: { videoPath?: string; time?: number }) => {
+    if (!payload?.videoPath || typeof payload.time !== 'number') return null
+    const jsonPath = analysisFilePath(payload.videoPath)
+    let existing: Record<string, unknown> = {}
+    try {
+      const raw = fs.readFileSync(jsonPath, 'utf-8')
+      existing = JSON.parse(raw)
+    } catch {
+      existing = { createdAt: Date.now(), notes: [], acts: [], sections: [], shots: [] }
+    }
+    const shots = appendRange(normalizeRange(existing.shots), payload.time)
+    const next = { ...existing, shots, updatedAt: Date.now() }
+    fs.writeFileSync(jsonPath, JSON.stringify(next, null, 2), 'utf-8')
+    return next
+  }
+)
 
 ipcMain.handle(
   'analysis:update',

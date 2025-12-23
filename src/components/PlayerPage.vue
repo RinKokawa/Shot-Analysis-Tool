@@ -17,11 +17,12 @@
         :height="videoHeight"
         :file-path="filePath"
         @back="onWorkAreaBack"
+        @create-act="onCreateAct"
+        @create-section="onCreateSection"
+        @create-shot="onCreateShot"
       />
     </div>
-    <div class="preview-area">
-      预览区域
-    </div>
+    <ChartArea :acts="acts" :sections="sections" :shots="shots" />
   </div>
 </template>
 
@@ -40,6 +41,11 @@ const videoRef = ref<HTMLVideoElement | null>(null)
 const aspectRatio = ref(16 / 9)
 const videoWidth = ref(640)
 const videoHeight = ref(360)
+type RangeItem = { start?: number; end?: number; time?: number; createdAt: number }
+
+const acts = ref<RangeItem[]>([])
+const sections = ref<RangeItem[]>([])
+const shots = ref<RangeItem[]>([])
 
 const minWidth = 240
 const viewportWidth = ref(window.innerWidth)
@@ -148,7 +154,7 @@ const applySavedSize = () => {
   videoHeight.value = Math.round(clampedWidth / aspectRatio.value)
 }
 
-const loadSavedSize = async () => {
+const loadAnalysis = async () => {
   if (!props.filePath || !window.ipcRenderer?.invoke) return
   const result = await window.ipcRenderer.invoke('analysis:read', {
     videoPath: props.filePath,
@@ -156,6 +162,21 @@ const loadSavedSize = async () => {
   if (result && typeof result === 'object' && typeof result.videoWidth === 'number') {
     savedWidth.value = result.videoWidth
     applySavedSize()
+  }
+  if (result && typeof result === 'object' && Array.isArray(result.acts)) {
+    acts.value = result.acts as RangeItem[]
+  } else {
+    acts.value = []
+  }
+  if (result && typeof result === 'object' && Array.isArray(result.sections)) {
+    sections.value = result.sections as RangeItem[]
+  } else {
+    sections.value = []
+  }
+  if (result && typeof result === 'object' && Array.isArray(result.shots)) {
+    shots.value = result.shots as RangeItem[]
+  } else {
+    shots.value = []
   }
 }
 
@@ -176,10 +197,49 @@ const onWorkAreaBack = () => {
   emit('back')
 }
 
+const onCreateAct = async () => {
+  if (!props.filePath || !window.ipcRenderer?.invoke) return
+  const video = videoRef.value
+  if (!video) return
+  const result = await window.ipcRenderer.invoke('analysis:addAct', {
+    videoPath: props.filePath,
+    time: video.currentTime,
+  })
+  if (result && typeof result === 'object' && Array.isArray(result.acts)) {
+    acts.value = result.acts as RangeItem[]
+  }
+}
+
+const onCreateSection = async () => {
+  if (!props.filePath || !window.ipcRenderer?.invoke) return
+  const video = videoRef.value
+  if (!video) return
+  const result = await window.ipcRenderer.invoke('analysis:addSection', {
+    videoPath: props.filePath,
+    time: video.currentTime,
+  })
+  if (result && typeof result === 'object' && Array.isArray(result.sections)) {
+    sections.value = result.sections as RangeItem[]
+  }
+}
+
+const onCreateShot = async () => {
+  if (!props.filePath || !window.ipcRenderer?.invoke) return
+  const video = videoRef.value
+  if (!video) return
+  const result = await window.ipcRenderer.invoke('analysis:addShot', {
+    videoPath: props.filePath,
+    time: video.currentTime,
+  })
+  if (result && typeof result === 'object' && Array.isArray(result.shots)) {
+    shots.value = result.shots as RangeItem[]
+  }
+}
+
 watch(
   () => props.filePath,
   () => {
-    loadSavedSize()
+    loadAnalysis()
   },
   { immediate: true }
 )

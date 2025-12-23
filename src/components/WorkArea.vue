@@ -19,6 +19,11 @@
         保存
       </button>
     </div>
+    <div class="work-actions">
+      <button class="action-button" type="button" @click="emit('create-act')">新建幕</button>
+      <button class="action-button" type="button" @click="emit('create-section')">新建节</button>
+      <button class="action-button" type="button" @click="emit('create-shot')">新建Shot</button>
+    </div>
   </div>
 </template>
 
@@ -27,6 +32,9 @@ import { computed, ref, watch } from 'vue'
 
 const emit = defineEmits<{
   (e: 'back'): void
+  (e: 'create-act'): void
+  (e: 'create-section'): void
+  (e: 'create-shot'): void
 }>()
 
 const props = defineProps<{
@@ -130,6 +138,23 @@ watch(
   color: #1a1a1a;
   flex: 1 1 auto;
   min-width: 0;
+}
+
+.work-actions {
+  position: absolute;
+  top: 48px;
+  left: 8px;
+  display: flex;
+  gap: 8px;
+}
+
+.action-button {
+  padding: 6px 10px;
+  border: 1px solid #c9c9c9;
+  border-radius: 0;
+  background: #ffffff;
+  color: #1a1a1a;
+  cursor: pointer;
 }
 
 .save-button {
