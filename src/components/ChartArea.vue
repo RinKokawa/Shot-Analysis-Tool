@@ -6,7 +6,7 @@
       class="chart-section"
     >
       <div class="chart-title">
-        幕 { actIndex + 1 }
+        幕 {{ actIndex + 1 }}
         <span class="chart-range">{{ formatRange(group.act.start, group.act.end) }}</span>
       </div>
       <div v-if="group.sections.length === 0" class="chart-empty">暂无节</div>
@@ -16,7 +16,7 @@
         class="chart-subsection"
       >
         <div class="chart-subtitle">
-          节 { sectionIndex + 1 }
+          节 {{ sectionIndex + 1 }}
           <span class="chart-range">{{ formatRange(sectionGroup.section.start, sectionGroup.section.end) }}</span>
         </div>
         <div class="chart-shot-list">
@@ -43,7 +43,7 @@
         class="chart-subsection"
       >
         <div class="chart-subtitle">
-          节 { sectionIndex + 1 }
+          节 {{ sectionIndex + 1 }}
           <span class="chart-range">{{ formatRange(sectionGroup.section.start, sectionGroup.section.end) }}</span>
         </div>
         <div class="chart-shot-list">
@@ -54,12 +54,12 @@
           >
             Shot {{ shotIndex + 1 }} ? {{ formatShotTime(shot) }}
           </div>
-          <div v-if="sectionGroup.shots.length === 0" class="chart-empty">暂无 Shot</div>
+          <div v-if="sectionGroup.shots.length === 0" class="chart-empty">?? Shot</div>
         </div>
       </div>
 
       <div v-if="grouped.orphanShots.length > 0" class="chart-subsection">
-        <div class="chart-subtitle">未归类节</div>
+        <div class="chart-subtitle">????</div>
         <div class="chart-shot-list">
           <div
             v-for="(shot, shotIndex) in grouped.orphanShots"
@@ -85,6 +85,16 @@
 import { computed } from 'vue'
 
 type RangeItem = { start?: number; end?: number; time?: number; createdAt: number }
+type NormalizedRange = { start: number; end?: number; createdAt: number }
+
+type SectionGroup = { section: NormalizedRange; shots: NormalizedRange[] }
+type ActGroup = { act: NormalizedRange; sections: SectionGroup[] }
+
+type GroupedData = {
+  actGroups: ActGroup[]
+  orphanSectionGroups: SectionGroup[]
+  orphanShots: NormalizedRange[]
+}
 
 const props = defineProps<{
   acts: RangeItem[]
@@ -92,41 +102,49 @@ const props = defineProps<{
   shots: RangeItem[]
 }>()
 
-const normalize = (items: RangeItem[]) =>
+const toNormalizedRange = (item: RangeItem): NormalizedRange | null => {
+  const start =
+    typeof item.start === 'number'
+      ? item.start
+      : typeof item.time === 'number'
+        ? item.time
+        : null
+  if (start === null) return null
+  const end = typeof item.end === 'number' ? item.end : undefined
+  return { start, end, createdAt: item.createdAt }
+}
+
+const normalize = (items: RangeItem[]): NormalizedRange[] =>
   items
-    .map((item) => {
-      const start = typeof item.start === 'number' ? item.start : typeof item.time === 'number' ? item.time : null
-      if (start === null) return null
-      const end = typeof item.end === 'number' ? item.end : undefined
-      return { start, end, createdAt: item.createdAt }
-    })
-    .filter((item): item is { start: number; end?: number; createdAt: number } => item !== null)
+    .map(toNormalizedRange)
+    .filter((item): item is NormalizedRange => item !== null)
     .sort((a, b) => a.start - b.start)
 
-const inRange = (time: number, start: number, end?: number) => time >= start && (end === undefined || time < end)
+const inRange = (time: number, start: number, end?: number) =>
+  time >= start && (end === undefined || time < end)
 
-const grouped = computed(() => {
+const grouped = computed<GroupedData>(() => {
   const acts = normalize(props.acts)
   const sections = normalize(props.sections)
   const shots = normalize(props.shots)
 
-  const actGroups = acts.map((act) => {
+  const actGroups: ActGroup[] = acts.map((act) => {
     const actSections = sections.filter((section) => inRange(section.start, act.start, act.end))
-    const sectionGroups = actSections.map((section) => ({
+    const sectionGroups: SectionGroup[] = actSections.map((section) => ({
       section,
       shots: shots.filter((shot) => inRange(shot.start, section.start, section.end)),
     }))
     return { act, sections: sectionGroups }
   })
 
-  const orphanSectionGroups = sections
+  const orphanSectionGroups: SectionGroup[] = sections
     .filter((section) => !acts.some((act) => inRange(section.start, act.start, act.end)))
     .map((section) => ({
       section,
       shots: shots.filter((shot) => inRange(shot.start, section.start, section.end)),
     }))
 
-  const orphanShots = shots.filter(
+  const orphanShots: NormalizedRange[] = shots.filter(
     (shot) => !sections.some((section) => inRange(shot.start, section.start, section.end))
   )
 
