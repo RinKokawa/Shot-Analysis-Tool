@@ -298,6 +298,60 @@ ipcMain.handle(
 )
 
 ipcMain.handle(
+  'analysis:updateSection',
+  (_event, payload: { videoPath?: string; createdAt?: number; start?: number | null; end?: number | null }) => {
+    if (!payload?.videoPath || typeof payload.createdAt !== 'number') return null
+    const jsonPath = analysisFilePath(payload.videoPath)
+    let existing: Record<string, unknown> = {}
+    try {
+      const raw = fs.readFileSync(jsonPath, 'utf-8')
+      existing = JSON.parse(raw)
+    } catch {
+      return null
+    }
+    const sections = normalizeRange(existing.sections)
+    const updatedSections = sections.map((section) => {
+      if (section.createdAt !== payload.createdAt) return section
+      const next = { ...section }
+      if (typeof payload.start === 'number') next.start = payload.start
+      if (typeof payload.end === 'number') next.end = payload.end
+      if (payload.end === null) next.end = undefined
+      return next
+    })
+    const next = { ...existing, sections: updatedSections, updatedAt: Date.now() }
+    fs.writeFileSync(jsonPath, JSON.stringify(next, null, 2), 'utf-8')
+    return next
+  }
+)
+
+ipcMain.handle(
+  'analysis:updateShot',
+  (_event, payload: { videoPath?: string; createdAt?: number; start?: number | null; end?: number | null }) => {
+    if (!payload?.videoPath || typeof payload.createdAt !== 'number') return null
+    const jsonPath = analysisFilePath(payload.videoPath)
+    let existing: Record<string, unknown> = {}
+    try {
+      const raw = fs.readFileSync(jsonPath, 'utf-8')
+      existing = JSON.parse(raw)
+    } catch {
+      return null
+    }
+    const shots = normalizeRange(existing.shots)
+    const updatedShots = shots.map((shot) => {
+      if (shot.createdAt !== payload.createdAt) return shot
+      const next = { ...shot }
+      if (typeof payload.start === 'number') next.start = payload.start
+      if (typeof payload.end === 'number') next.end = payload.end
+      if (payload.end === null) next.end = undefined
+      return next
+    })
+    const next = { ...existing, shots: updatedShots, updatedAt: Date.now() }
+    fs.writeFileSync(jsonPath, JSON.stringify(next, null, 2), 'utf-8')
+    return next
+  }
+)
+
+ipcMain.handle(
   'analysis:deleteAct',
   (_event, payload: { videoPath?: string; createdAt?: number }) => {
     if (!payload?.videoPath || typeof payload.createdAt !== 'number') return null

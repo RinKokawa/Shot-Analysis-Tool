@@ -9,6 +9,8 @@
           controls
           autoplay
           @loadedmetadata="onLoadedMetadata"
+          @timeupdate="onTimeUpdate"
+          @seeked="onTimeUpdate"
         ></video>
         <div class="resize-handle" @pointerdown="onResizeStart" />
       </div>
@@ -26,9 +28,17 @@
       :acts="acts"
       :sections="sections"
       :shots="shots"
+      :current-time="currentTime"
       @update-act="onUpdateAct"
       @set-act-start="onSetActStart"
       @set-act-end="onSetActEnd"
+      @update-section="onUpdateSection"
+      @set-section-start="onSetSectionStart"
+      @set-section-end="onSetSectionEnd"
+      @update-shot="onUpdateShot"
+      @set-shot-start="onSetShotStart"
+      @set-shot-end="onSetShotEnd"
+      @play-act="onPlayAct"
       @delete-act="onDeleteAct"
     />
   </div>
@@ -54,6 +64,7 @@ type RangeItem = { start?: number; end?: number; time?: number; createdAt: numbe
 const acts = ref<RangeItem[]>([])
 const sections = ref<RangeItem[]>([])
 const shots = ref<RangeItem[]>([])
+const currentTime = ref(0)
 
 const minWidth = 240
 const viewportWidth = ref(window.innerWidth)
@@ -122,6 +133,12 @@ const onLoadedMetadata = () => {
   } else {
     videoHeight.value = Math.round(videoWidth.value / aspectRatio.value)
   }
+}
+
+const onTimeUpdate = () => {
+  const video = videoRef.value
+  if (!video) return
+  currentTime.value = video.currentTime
 }
 
 const onResizeStart = (event: PointerEvent) => {
@@ -294,6 +311,95 @@ const onDeleteAct = async (createdAt: number) => {
   if (result && typeof result === 'object' && Array.isArray(result.acts)) {
     acts.value = result.acts as RangeItem[]
   }
+}
+
+const onUpdateSection = async (payload: { createdAt: number; start?: number | null; end?: number | null }) => {
+  if (!props.filePath || !window.ipcRenderer?.invoke) return
+  const result = await window.ipcRenderer.invoke('analysis:updateSection', {
+    videoPath: props.filePath,
+    createdAt: payload.createdAt,
+    start: payload.start,
+    end: payload.end,
+  })
+  if (result && typeof result === 'object' && Array.isArray(result.sections)) {
+    sections.value = result.sections as RangeItem[]
+  }
+}
+
+const onUpdateShot = async (payload: { createdAt: number; start?: number | null; end?: number | null }) => {
+  if (!props.filePath || !window.ipcRenderer?.invoke) return
+  const result = await window.ipcRenderer.invoke('analysis:updateShot', {
+    videoPath: props.filePath,
+    createdAt: payload.createdAt,
+    start: payload.start,
+    end: payload.end,
+  })
+  if (result && typeof result === 'object' && Array.isArray(result.shots)) {
+    shots.value = result.shots as RangeItem[]
+  }
+}
+
+const onSetSectionStart = async (createdAt: number) => {
+  if (!props.filePath || !window.ipcRenderer?.invoke) return
+  const video = videoRef.value
+  if (!video) return
+  const result = await window.ipcRenderer.invoke('analysis:updateSection', {
+    videoPath: props.filePath,
+    createdAt,
+    start: video.currentTime,
+  })
+  if (result && typeof result === 'object' && Array.isArray(result.sections)) {
+    sections.value = result.sections as RangeItem[]
+  }
+}
+
+const onSetSectionEnd = async (createdAt: number) => {
+  if (!props.filePath || !window.ipcRenderer?.invoke) return
+  const video = videoRef.value
+  if (!video) return
+  const result = await window.ipcRenderer.invoke('analysis:updateSection', {
+    videoPath: props.filePath,
+    createdAt,
+    end: video.currentTime,
+  })
+  if (result && typeof result === 'object' && Array.isArray(result.sections)) {
+    sections.value = result.sections as RangeItem[]
+  }
+}
+
+const onSetShotStart = async (createdAt: number) => {
+  if (!props.filePath || !window.ipcRenderer?.invoke) return
+  const video = videoRef.value
+  if (!video) return
+  const result = await window.ipcRenderer.invoke('analysis:updateShot', {
+    videoPath: props.filePath,
+    createdAt,
+    start: video.currentTime,
+  })
+  if (result && typeof result === 'object' && Array.isArray(result.shots)) {
+    shots.value = result.shots as RangeItem[]
+  }
+}
+
+const onSetShotEnd = async (createdAt: number) => {
+  if (!props.filePath || !window.ipcRenderer?.invoke) return
+  const video = videoRef.value
+  if (!video) return
+  const result = await window.ipcRenderer.invoke('analysis:updateShot', {
+    videoPath: props.filePath,
+    createdAt,
+    end: video.currentTime,
+  })
+  if (result && typeof result === 'object' && Array.isArray(result.shots)) {
+    shots.value = result.shots as RangeItem[]
+  }
+}
+
+const onPlayAct = (start: number) => {
+  const video = videoRef.value
+  if (!video) return
+  video.currentTime = Math.max(0, start)
+  video.play()
 }
 
 watch(

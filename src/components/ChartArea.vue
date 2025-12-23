@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <div class="chart-area">
     <ActItem
       v-for="(group, actIndex) in grouped.actGroups"
@@ -6,9 +6,17 @@
       :act="group.act"
       :index="actIndex"
       :sections="group.sections"
+      :current-time="currentTime"
       @update-act="emit('update-act', $event)"
       @set-act-start="emit('set-act-start', $event)"
       @set-act-end="emit('set-act-end', $event)"
+      @update-section="emit('update-section', $event)"
+      @set-section-start="emit('set-section-start', $event)"
+      @set-section-end="emit('set-section-end', $event)"
+      @update-shot="emit('update-shot', $event)"
+      @set-shot-start="emit('set-shot-start', $event)"
+      @set-shot-end="emit('set-shot-end', $event)"
+      @play-act="emit('play-act', $event)"
       @delete-act="emit('delete-act', $event)"
     />
 
@@ -24,7 +32,7 @@
       >
         <div class="chart-subtitle">
           节 {{ sectionIndex + 1 }}
-          <span class="chart-range">{{ formatRange(sectionGroup.section.start, sectionGroup.section.end) }}</span>
+          <span class="chart-range">{{ formatRange(sectionGroup.section.start, sectionGroup.effectiveEnd) }}</span>
         </div>
         <div class="chart-shot-list">
           <div
@@ -68,7 +76,11 @@ import ActItem from './ActItem.vue'
 type RangeItem = { start?: number; end?: number; time?: number; createdAt: number }
 type NormalizedRange = { start: number; end: number | undefined; createdAt: number }
 
-type SectionGroup = { section: NormalizedRange; shots: NormalizedRange[] }
+type SectionGroup = {
+  section: NormalizedRange
+  effectiveEnd: number | undefined
+  shots: NormalizedRange[]
+}
 type ActGroup = { act: NormalizedRange; sections: SectionGroup[] }
 
 type GroupedData = {
@@ -83,6 +95,13 @@ type Emits = {
   (e: 'update-act', payload: UpdateActPayload): void
   (e: 'set-act-start', createdAt: number): void
   (e: 'set-act-end', createdAt: number): void
+  (e: 'update-section', payload: UpdateActPayload): void
+  (e: 'set-section-start', createdAt: number): void
+  (e: 'set-section-end', createdAt: number): void
+  (e: 'update-shot', payload: UpdateActPayload): void
+  (e: 'set-shot-start', createdAt: number): void
+  (e: 'set-shot-end', createdAt: number): void
+  (e: 'play-act', start: number): void
   (e: 'delete-act', createdAt: number): void
 }
 
@@ -92,6 +111,7 @@ const props = defineProps<{
   acts: RangeItem[]
   sections: RangeItem[]
   shots: RangeItem[]
+  currentTime: number
 }>()
 
 const toNormalizedRange = (item: RangeItem): NormalizedRange | null => {
@@ -115,6 +135,17 @@ const normalize = (items: RangeItem[]): NormalizedRange[] =>
 const inRange = (time: number, start: number, end?: number) =>
   time >= start && (end === undefined || time < end)
 
+const normalizeEnd = (start: number, end: number | undefined) => {
+  if (end === undefined) return undefined
+  return end > start ? end : undefined
+}
+
+const clampEnd = (end: number | undefined, limit: number | undefined) => {
+  if (limit === undefined) return end
+  if (end === undefined || end > limit) return limit
+  return end
+}
+
 const grouped = computed<GroupedData>(() => {
   const acts = normalize(props.acts)
   const sections = normalize(props.sections)
@@ -122,10 +153,15 @@ const grouped = computed<GroupedData>(() => {
 
   const actGroups: ActGroup[] = acts.map((act) => {
     const actSections = sections.filter((section) => inRange(section.start, act.start, act.end))
-    const sectionGroups: SectionGroup[] = actSections.map((section) => ({
-      section,
-      shots: shots.filter((shot) => inRange(shot.start, section.start, section.end)),
-    }))
+    const sectionGroups: SectionGroup[] = actSections.map((section) => {
+      const effectiveEnd = clampEnd(normalizeEnd(section.start, section.end), act.end)
+      const shotItems = shots.filter(
+        (shot) =>
+          inRange(shot.start, section.start, effectiveEnd) &&
+          inRange(shot.start, act.start, act.end)
+      )
+      return { section, effectiveEnd, shots: shotItems }
+    })
     return { act, sections: sectionGroups }
   })
 
@@ -133,11 +169,12 @@ const grouped = computed<GroupedData>(() => {
     .filter((section) => !acts.some((act) => inRange(section.start, act.start, act.end)))
     .map((section) => ({
       section,
-      shots: shots.filter((shot) => inRange(shot.start, section.start, section.end)),
+      effectiveEnd: normalizeEnd(section.start, section.end),
+      shots: shots.filter((shot) => inRange(shot.start, section.start, normalizeEnd(section.start, section.end))),
     }))
 
   const orphanShots: NormalizedRange[] = shots.filter(
-    (shot) => !sections.some((section) => inRange(shot.start, section.start, section.end))
+    (shot) => !sections.some((section) => inRange(shot.start, section.start, normalizeEnd(section.start, section.end)))
   )
 
   return { actGroups, orphanSectionGroups, orphanShots }
@@ -186,7 +223,6 @@ const formatShotTime = (shot: { start: number; end?: number }) => {
   gap: 8px;
   align-items: center;
 }
-
 
 .chart-subsection {
   margin-top: 8px;
