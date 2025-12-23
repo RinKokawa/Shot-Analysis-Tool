@@ -1,16 +1,11 @@
 ﻿<template>
-  <div class="chart-section" :class="{ 'chart-section-active': isActive }">
-    <div class="chart-title">
-      幕{{ index + 1 }}
-      <span class="chart-range">{{ formatRange(act.start, act.end) }}</span>
-      <button class="chart-button" type="button" @click="emitPlayFromAct(act.start)">播放</button>
-      <button class="chart-delete" type="button" @click="emitDeleteAct(act.createdAt)">删除</button>
-    </div>
-    <div class="chart-meta">
+  <div class="chart-shot-item" :class="{ 'chart-shot-active': isShotActive }">
+    <div class="chart-shot-title">Shot {{ index + 1 }} · {{ formatShotTime(shot) }}</div>
+    <div class="chart-meta chart-meta-small">
       <label class="chart-label">标题</label>
       <input
         v-model="editState.title"
-        class="chart-input chart-input-wide"
+        class="chart-input chart-input-small"
         type="text"
         @blur="commitTitle"
         @change="commitTitle"
@@ -20,18 +15,18 @@
       <label class="chart-label">备注</label>
       <textarea
         v-model="editState.note"
-        class="chart-textarea"
+        class="chart-textarea chart-textarea-small"
         rows="2"
         @blur="commitNote"
         @change="commitNote"
         @keydown.ctrl.s.prevent="commitNote"
       ></textarea>
     </div>
-    <div class="chart-controls">
+    <div class="chart-controls chart-controls-small">
       <label class="chart-label">起</label>
       <input
         v-model="editState.start"
-        class="chart-input"
+        class="chart-input chart-input-small"
         type="text"
         inputmode="decimal"
         step="0.01"
@@ -40,11 +35,11 @@
         @keydown.enter.prevent="commitStart"
         @keydown.ctrl.s.prevent="commitStart"
       />
-      <button class="chart-button" type="button" @click="emitSetStart(act.createdAt)">取当前</button>
+      <button class="chart-button" type="button" @click="emitSetStart">取当前</button>
       <label class="chart-label">止</label>
       <input
         v-model="editState.end"
-        class="chart-input"
+        class="chart-input chart-input-small"
         type="text"
         inputmode="decimal"
         step="0.01"
@@ -53,29 +48,13 @@
         @keydown.enter.prevent="commitEnd"
         @keydown.ctrl.s.prevent="commitEnd"
       />
-      <button class="chart-button" type="button" @click="emitSetEnd(act.createdAt)">取当前</button>
+      <button class="chart-button" type="button" @click="emitSetEnd">取当前</button>
     </div>
-
-    <div v-if="sections.length === 0" class="chart-empty">暂无节</div>
-    <SectionItem
-      v-for="(sectionGroup, sectionIndex) in sections"
-      :key="'section-' + sectionGroup.section.createdAt + '-' + sectionIndex"
-      :section-group="sectionGroup"
-      :index="sectionIndex"
-      :current-time="currentTime"
-      @update-section="emit('update-section', $event)"
-      @set-section-start="emit('set-section-start', $event)"
-      @set-section-end="emit('set-section-end', $event)"
-      @update-shot="emit('update-shot', $event)"
-      @set-shot-start="emit('set-shot-start', $event)"
-      @set-shot-end="emit('set-shot-end', $event)"
-    />
   </div>
 </template>
 
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import SectionItem from './SectionItem.vue'
 
 type NormalizedRange = {
   start: number
@@ -84,11 +63,7 @@ type NormalizedRange = {
   title?: string
   note?: string
 }
-type SectionGroup = {
-  section: NormalizedRange
-  effectiveEnd: number | undefined
-  shots: NormalizedRange[]
-}
+
 type UpdateActPayload = {
   createdAt: number
   start?: number | null
@@ -96,43 +71,36 @@ type UpdateActPayload = {
   title?: string | null
   note?: string | null
 }
+
 type EditState = { start: string; end: string; title: string; note: string }
 
 const props = defineProps<{
-  act: NormalizedRange
+  shot: NormalizedRange
   index: number
-  sections: SectionGroup[]
   currentTime: number
 }>()
 
 const emit = defineEmits<{
-  (e: 'update-act', payload: UpdateActPayload): void
-  (e: 'set-act-start', createdAt: number): void
-  (e: 'set-act-end', createdAt: number): void
-  (e: 'delete-act', createdAt: number): void
-  (e: 'play-act', start: number): void
-  (e: 'update-section', payload: UpdateActPayload): void
-  (e: 'set-section-start', createdAt: number): void
-  (e: 'set-section-end', createdAt: number): void
   (e: 'update-shot', payload: UpdateActPayload): void
   (e: 'set-shot-start', createdAt: number): void
   (e: 'set-shot-end', createdAt: number): void
 }>()
 
 const editState = ref<EditState>({ start: '', end: '', title: '', note: '' })
+
 const formatNumber = (value: number) => value.toFixed(2)
 
 const refreshEdit = () => {
   editState.value = {
-    start: formatNumber(props.act.start),
-    end: props.act.end === undefined ? '' : formatNumber(props.act.end),
-    title: props.act.title ?? '',
-    note: props.act.note ?? '',
+    start: formatNumber(props.shot.start),
+    end: props.shot.end === undefined ? '' : formatNumber(props.shot.end),
+    title: props.shot.title ?? '',
+    note: props.shot.note ?? '',
   }
 }
 
 watch(
-  () => props.act,
+  () => props.shot,
   () => refreshEdit(),
   { immediate: true }
 )
@@ -158,40 +126,37 @@ const parseTime = (input: string) => {
 const commitStart = () => {
   const parsed = parseTime(editState.value.start)
   if (parsed === null) return
-  emit('update-act', { createdAt: props.act.createdAt, start: parsed })
+  emit('update-shot', { createdAt: props.shot.createdAt, start: parsed })
 }
 
 const commitEnd = () => {
   const value = editState.value.end.trim()
   if (!value) {
-    emit('update-act', { createdAt: props.act.createdAt, end: null })
+    emit('update-shot', { createdAt: props.shot.createdAt, end: null })
     return
   }
   const parsed = parseTime(value)
   if (parsed === null) return
-  emit('update-act', { createdAt: props.act.createdAt, end: parsed })
+  emit('update-shot', { createdAt: props.shot.createdAt, end: parsed })
 }
 
 const commitTitle = () => {
   const title = normalizeText(editState.value.title)
-  emit('update-act', { createdAt: props.act.createdAt, title: title ? title : null })
+  emit('update-shot', { createdAt: props.shot.createdAt, title: title ? title : null })
 }
 
 const commitNote = () => {
   const note = normalizeText(editState.value.note)
-  emit('update-act', { createdAt: props.act.createdAt, note: note ? note : null })
+  emit('update-shot', { createdAt: props.shot.createdAt, note: note ? note : null })
 }
 
-const emitSetStart = (createdAt: number) => emit('set-act-start', createdAt)
-const emitSetEnd = (createdAt: number) => emit('set-act-end', createdAt)
-const emitPlayFromAct = (start: number) => emit('play-act', start)
+const emitSetStart = () => emit('set-shot-start', props.shot.createdAt)
+const emitSetEnd = () => emit('set-shot-end', props.shot.createdAt)
 
-const isActive = computed(() => {
-  const end = props.act.end
-  return props.currentTime >= props.act.start && (end === undefined || props.currentTime < end)
+const isShotActive = computed(() => {
+  const end = props.shot.end
+  return props.currentTime >= props.shot.start && (end === undefined || props.currentTime < end)
 })
-
-const emitDeleteAct = (createdAt: number) => emit('delete-act', createdAt)
 
 const formatTime = (time: number) => {
   const totalSeconds = Math.max(0, Math.floor(time))
@@ -205,16 +170,26 @@ const formatRange = (start: number, end?: number) => {
   return `${formatTime(start)} - ${formatTime(end)}`
 }
 
+const formatShotTime = (shot: { start: number; end?: number }) => {
+  if (shot.end === undefined) return formatTime(shot.start)
+  return formatRange(shot.start, shot.end)
+}
 </script>
 
 <style scoped>
-.chart-title {
-  font-size: 12px;
-  color: #1a1a1a;
-  font-weight: 600;
-  display: flex;
-  gap: 8px;
-  align-items: center;
+.chart-shot-item {
+  padding: 4px 6px;
+  border: 1px solid #e0e0e0;
+  background: #fafafa;
+}
+
+.chart-shot-active {
+  border-color: #6bbf7d;
+  background: #e6f7eb;
+}
+
+.chart-shot-title {
+  margin-bottom: 4px;
 }
 
 .chart-meta {
@@ -225,11 +200,20 @@ const formatRange = (start: number, end?: number) => {
   flex-wrap: wrap;
 }
 
+.chart-meta-small {
+  margin-top: 4px;
+}
+
 .chart-controls {
   display: flex;
   align-items: center;
   gap: 6px;
   margin: 6px 0 4px;
+}
+
+.chart-controls-small {
+  margin: 4px 0 0;
+  gap: 4px;
 }
 
 .chart-label {
@@ -244,8 +228,8 @@ const formatRange = (start: number, end?: number) => {
   border-radius: 0;
 }
 
-.chart-input-wide {
-  width: 180px;
+.chart-input-small {
+  width: 72px;
 }
 
 .chart-textarea {
@@ -259,39 +243,16 @@ const formatRange = (start: number, end?: number) => {
   font-family: inherit;
 }
 
-.chart-button,
-.chart-delete {
+.chart-textarea-small {
+  width: 160px;
+  min-height: 30px;
+}
+
+.chart-button {
   padding: 4px 8px;
   border: 1px solid #c9c9c9;
   border-radius: 0;
   background: #ffffff;
   cursor: pointer;
 }
-
-.chart-delete {
-  margin-left: auto;
-  color: #a40000;
-}
-
-.chart-range {
-  color: #666666;
-  font-weight: 400;
-}
-
-.chart-empty {
-  font-size: 12px;
-  color: #999999;
-  margin-top: 6px;
-}
-
-.chart-section {
-  padding: 8px 0;
-  border-bottom: 1px solid #f0f0f0;
-}
-
-.chart-section-active {
-  background: #fff7e6;
-  border-bottom-color: #f0d7a8;
-}
 </style>
-
