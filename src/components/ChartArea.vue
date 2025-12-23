@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div class="chart-area">
     <ActItem
       v-for="(group, actIndex) in grouped.actGroups"
@@ -73,8 +73,21 @@
 import { computed } from 'vue'
 import ActItem from './ActItem.vue'
 
-type RangeItem = { start?: number; end?: number; time?: number; createdAt: number }
-type NormalizedRange = { start: number; end: number | undefined; createdAt: number }
+type RangeItem = {
+  start?: number
+  end?: number
+  time?: number
+  createdAt: number
+  title?: string
+  note?: string
+}
+type NormalizedRange = {
+  start: number
+  end: number | undefined
+  createdAt: number
+  title?: string
+  note?: string
+}
 
 type SectionGroup = {
   section: NormalizedRange
@@ -89,7 +102,13 @@ type GroupedData = {
   orphanShots: NormalizedRange[]
 }
 
-type UpdateActPayload = { createdAt: number; start?: number | null; end?: number | null }
+type UpdateActPayload = {
+  createdAt: number
+  start?: number | null
+  end?: number | null
+  title?: string | null
+  note?: string | null
+}
 
 type Emits = {
   (e: 'update-act', payload: UpdateActPayload): void
@@ -123,7 +142,9 @@ const toNormalizedRange = (item: RangeItem): NormalizedRange | null => {
         : null
   if (start === null) return null
   const end = typeof item.end === 'number' ? item.end : undefined
-  return { start, end, createdAt: item.createdAt }
+  const title = typeof item.title === 'string' ? item.title : undefined
+  const note = typeof item.note === 'string' ? item.note : undefined
+  return { start, end, createdAt: item.createdAt, title, note }
 }
 
 const normalize = (items: RangeItem[]): NormalizedRange[] =>
@@ -208,6 +229,7 @@ const formatShotTime = (shot: { start: number; end?: number }) => {
   font-size: 12px;
   padding: 8px 12px;
   box-sizing: border-box;
+  overflow: auto;
 }
 
 .chart-section {

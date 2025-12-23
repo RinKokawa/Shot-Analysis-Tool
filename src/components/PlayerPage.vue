@@ -59,7 +59,14 @@ const videoRef = ref<HTMLVideoElement | null>(null)
 const aspectRatio = ref(16 / 9)
 const videoWidth = ref(640)
 const videoHeight = ref(360)
-type RangeItem = { start?: number; end?: number; time?: number; createdAt: number }
+type RangeItem = {
+  start?: number
+  end?: number
+  time?: number
+  createdAt: number
+  title?: string
+  note?: string
+}
 
 const acts = ref<RangeItem[]>([])
 const sections = ref<RangeItem[]>([])
@@ -261,13 +268,21 @@ const onCreateShot = async () => {
   }
 }
 
-const onUpdateAct = async (payload: { createdAt: number; start?: number | null; end?: number | null }) => {
+const onUpdateAct = async (payload: {
+  createdAt: number
+  start?: number | null
+  end?: number | null
+  title?: string | null
+  note?: string | null
+}) => {
   if (!props.filePath || !window.ipcRenderer?.invoke) return
   const result = await window.ipcRenderer.invoke('analysis:updateAct', {
     videoPath: props.filePath,
     createdAt: payload.createdAt,
     start: payload.start,
     end: payload.end,
+    title: payload.title,
+    note: payload.note,
   })
   if (result && typeof result === 'object' && Array.isArray(result.acts)) {
     acts.value = result.acts as RangeItem[]
@@ -313,26 +328,42 @@ const onDeleteAct = async (createdAt: number) => {
   }
 }
 
-const onUpdateSection = async (payload: { createdAt: number; start?: number | null; end?: number | null }) => {
+const onUpdateSection = async (payload: {
+  createdAt: number
+  start?: number | null
+  end?: number | null
+  title?: string | null
+  note?: string | null
+}) => {
   if (!props.filePath || !window.ipcRenderer?.invoke) return
   const result = await window.ipcRenderer.invoke('analysis:updateSection', {
     videoPath: props.filePath,
     createdAt: payload.createdAt,
     start: payload.start,
     end: payload.end,
+    title: payload.title,
+    note: payload.note,
   })
   if (result && typeof result === 'object' && Array.isArray(result.sections)) {
     sections.value = result.sections as RangeItem[]
   }
 }
 
-const onUpdateShot = async (payload: { createdAt: number; start?: number | null; end?: number | null }) => {
+const onUpdateShot = async (payload: {
+  createdAt: number
+  start?: number | null
+  end?: number | null
+  title?: string | null
+  note?: string | null
+}) => {
   if (!props.filePath || !window.ipcRenderer?.invoke) return
   const result = await window.ipcRenderer.invoke('analysis:updateShot', {
     videoPath: props.filePath,
     createdAt: payload.createdAt,
     start: payload.start,
     end: payload.end,
+    title: payload.title,
+    note: payload.note,
   })
   if (result && typeof result === 'object' && Array.isArray(result.shots)) {
     shots.value = result.shots as RangeItem[]

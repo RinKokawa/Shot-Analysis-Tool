@@ -1,10 +1,31 @@
-<template>
+﻿<template>
   <div class="chart-section" :class="{ 'chart-section-active': isActive }">
     <div class="chart-title">
-      幕 {{ index + 1 }}
+      幕{{ index + 1 }}
       <span class="chart-range">{{ formatRange(act.start, act.end) }}</span>
       <button class="chart-button" type="button" @click="emitPlayFromAct(act.start)">播放</button>
       <button class="chart-delete" type="button" @click="emitDeleteAct(act.createdAt)">删除</button>
+    </div>
+    <div class="chart-meta">
+      <label class="chart-label">标题</label>
+      <input
+        v-model="editState.title"
+        class="chart-input chart-input-wide"
+        type="text"
+        @blur="commitTitle"
+        @change="commitTitle"
+        @keydown.enter.prevent="commitTitle"
+        @keydown.ctrl.s.prevent="commitTitle"
+      />
+      <label class="chart-label">备注</label>
+      <textarea
+        v-model="editState.note"
+        class="chart-textarea"
+        rows="2"
+        @blur="commitNote"
+        @change="commitNote"
+        @keydown.ctrl.s.prevent="commitNote"
+      ></textarea>
     </div>
     <div class="chart-controls">
       <label class="chart-label">起</label>
@@ -42,8 +63,29 @@
       class="chart-subsection"
     >
       <div class="chart-subtitle">
-        节 {{ sectionIndex + 1 }}
+        节{{ sectionIndex + 1 }}
         <span class="chart-range">{{ formatRange(sectionGroup.section.start, sectionGroup.effectiveEnd) }}</span>
+      </div>
+      <div class="chart-meta chart-meta-small">
+        <label class="chart-label">标题</label>
+        <input
+          v-model="sectionEdit(sectionGroup.section).title"
+          class="chart-input chart-input-small"
+          type="text"
+          @blur="commitSectionTitle(sectionGroup.section)"
+          @change="commitSectionTitle(sectionGroup.section)"
+          @keydown.enter.prevent="commitSectionTitle(sectionGroup.section)"
+          @keydown.ctrl.s.prevent="commitSectionTitle(sectionGroup.section)"
+        />
+        <label class="chart-label">备注</label>
+        <textarea
+          v-model="sectionEdit(sectionGroup.section).note"
+          class="chart-textarea chart-textarea-small"
+          rows="2"
+          @blur="commitSectionNote(sectionGroup.section)"
+          @change="commitSectionNote(sectionGroup.section)"
+          @keydown.ctrl.s.prevent="commitSectionNote(sectionGroup.section)"
+        ></textarea>
       </div>
       <div class="chart-controls chart-controls-small">
         <label class="chart-label">起</label>
@@ -80,6 +122,27 @@
           class="chart-shot-item"
         >
           <div class="chart-shot-title">Shot {{ shotIndex + 1 }} · {{ formatShotTime(shot) }}</div>
+          <div class="chart-meta chart-meta-small">
+            <label class="chart-label">标题</label>
+            <input
+              v-model="shotEdit(shot).title"
+              class="chart-input chart-input-small"
+              type="text"
+              @blur="commitShotTitle(shot)"
+              @change="commitShotTitle(shot)"
+              @keydown.enter.prevent="commitShotTitle(shot)"
+              @keydown.ctrl.s.prevent="commitShotTitle(shot)"
+            />
+            <label class="chart-label">备注</label>
+            <textarea
+              v-model="shotEdit(shot).note"
+              class="chart-textarea chart-textarea-small"
+              rows="2"
+              @blur="commitShotNote(shot)"
+              @change="commitShotNote(shot)"
+              @keydown.ctrl.s.prevent="commitShotNote(shot)"
+            ></textarea>
+          </div>
           <div class="chart-controls chart-controls-small">
             <label class="chart-label">起</label>
             <input
@@ -118,14 +181,26 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 
-type NormalizedRange = { start: number; end: number | undefined; createdAt: number }
+type NormalizedRange = {
+  start: number
+  end: number | undefined
+  createdAt: number
+  title?: string
+  note?: string
+}
 type SectionGroup = {
   section: NormalizedRange
   effectiveEnd: number | undefined
   shots: NormalizedRange[]
 }
-type UpdateActPayload = { createdAt: number; start?: number | null; end?: number | null }
-type EditState = { start: string; end: string }
+type UpdateActPayload = {
+  createdAt: number
+  start?: number | null
+  end?: number | null
+  title?: string | null
+  note?: string | null
+}
+type EditState = { start: string; end: string; title: string; note: string }
 
 const props = defineProps<{
   act: NormalizedRange
@@ -148,7 +223,7 @@ const emit = defineEmits<{
   (e: 'set-shot-end', createdAt: number): void
 }>()
 
-const editState = ref<EditState>({ start: '', end: '' })
+const editState = ref<EditState>({ start: '', end: '', title: '', note: '' })
 const sectionEditMap = ref<Record<string, EditState>>({})
 const shotEditMap = ref<Record<string, EditState>>({})
 
@@ -158,6 +233,8 @@ const refreshEdit = () => {
   editState.value = {
     start: formatNumber(props.act.start),
     end: props.act.end === undefined ? '' : formatNumber(props.act.end),
+    title: props.act.title ?? '',
+    note: props.act.note ?? '',
   }
 }
 
@@ -173,6 +250,8 @@ const sectionEdit = (section: NormalizedRange): EditState => {
     sectionEditMap.value[key] = {
       start: formatNumber(section.start),
       end: section.end === undefined ? '' : formatNumber(section.end),
+      title: section.title ?? '',
+      note: section.note ?? '',
     }
   }
   return sectionEditMap.value[key]
@@ -184,10 +263,14 @@ const shotEdit = (shot: NormalizedRange): EditState => {
     shotEditMap.value[key] = {
       start: formatNumber(shot.start),
       end: shot.end === undefined ? '' : formatNumber(shot.end),
+      title: shot.title ?? '',
+      note: shot.note ?? '',
     }
   }
   return shotEditMap.value[key]
 }
+
+const normalizeText = (value: string) => value.trim()
 
 const parseTime = (input: string) => {
   const value = input.trim()
@@ -222,6 +305,16 @@ const commitEnd = () => {
   emit('update-act', { createdAt: props.act.createdAt, end: parsed })
 }
 
+const commitTitle = () => {
+  const title = normalizeText(editState.value.title)
+  emit('update-act', { createdAt: props.act.createdAt, title: title ? title : null })
+}
+
+const commitNote = () => {
+  const note = normalizeText(editState.value.note)
+  emit('update-act', { createdAt: props.act.createdAt, note: note ? note : null })
+}
+
 const commitSectionStart = (section: NormalizedRange) => {
   const parsed = parseTime(sectionEdit(section).start)
   if (parsed === null) return
@@ -239,6 +332,16 @@ const commitSectionEnd = (section: NormalizedRange) => {
   emit('update-section', { createdAt: section.createdAt, end: parsed })
 }
 
+const commitSectionTitle = (section: NormalizedRange) => {
+  const title = normalizeText(sectionEdit(section).title)
+  emit('update-section', { createdAt: section.createdAt, title: title ? title : null })
+}
+
+const commitSectionNote = (section: NormalizedRange) => {
+  const note = normalizeText(sectionEdit(section).note)
+  emit('update-section', { createdAt: section.createdAt, note: note ? note : null })
+}
+
 const commitShotStart = (shot: NormalizedRange) => {
   const parsed = parseTime(shotEdit(shot).start)
   if (parsed === null) return
@@ -254,6 +357,16 @@ const commitShotEnd = (shot: NormalizedRange) => {
   const parsed = parseTime(value)
   if (parsed === null) return
   emit('update-shot', { createdAt: shot.createdAt, end: parsed })
+}
+
+const commitShotTitle = (shot: NormalizedRange) => {
+  const title = normalizeText(shotEdit(shot).title)
+  emit('update-shot', { createdAt: shot.createdAt, title: title ? title : null })
+}
+
+const commitShotNote = (shot: NormalizedRange) => {
+  const note = normalizeText(shotEdit(shot).note)
+  emit('update-shot', { createdAt: shot.createdAt, note: note ? note : null })
 }
 
 const emitSetStart = (createdAt: number) => emit('set-act-start', createdAt)
@@ -299,6 +412,18 @@ const formatShotTime = (shot: { start: number; end?: number }) => {
   align-items: center;
 }
 
+.chart-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 6px 0 4px;
+  flex-wrap: wrap;
+}
+
+.chart-meta-small {
+  margin-top: 4px;
+}
+
 .chart-controls {
   display: flex;
   align-items: center;
@@ -325,6 +450,26 @@ const formatShotTime = (shot: { start: number; end?: number }) => {
 
 .chart-input-small {
   width: 72px;
+}
+
+.chart-input-wide {
+  width: 180px;
+}
+
+.chart-textarea {
+  width: 220px;
+  min-height: 36px;
+  padding: 4px 6px;
+  border: 1px solid #c9c9c9;
+  border-radius: 0;
+  resize: vertical;
+  font-size: 12px;
+  font-family: inherit;
+}
+
+.chart-textarea-small {
+  width: 160px;
+  min-height: 30px;
 }
 
 .chart-button,
@@ -392,3 +537,4 @@ const formatShotTime = (shot: { start: number; end?: number }) => {
   border-bottom-color: #f0d7a8;
 }
 </style>
+

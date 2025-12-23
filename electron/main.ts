@@ -78,7 +78,13 @@ const analysisFilePath = (videoPath: string) => {
   return path.join(dirPath, `${safeName}.json`)
 }
 
-type RangeItem = { start: number; end: number | undefined; createdAt: number }
+type RangeItem = {
+  start: number
+  end: number | undefined
+  createdAt: number
+  title?: string
+  note?: string
+}
 
 const normalizeRange = (items: unknown): RangeItem[] => {
   if (!Array.isArray(items)) return []
@@ -96,7 +102,9 @@ const normalizeRange = (items: unknown): RangeItem[] => {
       const end = typeof record.end === 'number' ? record.end : undefined
       const createdAt =
         typeof record.createdAt === 'number' ? record.createdAt : Date.now()
-      return { start, end, createdAt }
+      const title = typeof record.title === 'string' ? record.title : undefined
+      const note = typeof record.note === 'string' ? record.note : undefined
+      return { start, end, createdAt, title, note }
     })
     .filter((item): item is RangeItem => item !== null)
 }
@@ -272,7 +280,17 @@ ipcMain.handle(
 
 ipcMain.handle(
   'analysis:updateAct',
-  (_event, payload: { videoPath?: string; createdAt?: number; start?: number | null; end?: number | null }) => {
+  (
+    _event,
+    payload: {
+      videoPath?: string
+      createdAt?: number
+      start?: number | null
+      end?: number | null
+      title?: string | null
+      note?: string | null
+    }
+  ) => {
     if (!payload?.videoPath || typeof payload.createdAt !== 'number') return null
     const jsonPath = analysisFilePath(payload.videoPath)
     let existing: Record<string, unknown> = {}
@@ -289,6 +307,10 @@ ipcMain.handle(
       if (typeof payload.start === 'number') next.start = payload.start
       if (typeof payload.end === 'number') next.end = payload.end
       if (payload.end === null) next.end = undefined
+      if (typeof payload.title === 'string') next.title = payload.title
+      if (payload.title === null) delete next.title
+      if (typeof payload.note === 'string') next.note = payload.note
+      if (payload.note === null) delete next.note
       return next
     })
     const next = { ...existing, acts: updatedActs, updatedAt: Date.now() }
@@ -299,7 +321,17 @@ ipcMain.handle(
 
 ipcMain.handle(
   'analysis:updateSection',
-  (_event, payload: { videoPath?: string; createdAt?: number; start?: number | null; end?: number | null }) => {
+  (
+    _event,
+    payload: {
+      videoPath?: string
+      createdAt?: number
+      start?: number | null
+      end?: number | null
+      title?: string | null
+      note?: string | null
+    }
+  ) => {
     if (!payload?.videoPath || typeof payload.createdAt !== 'number') return null
     const jsonPath = analysisFilePath(payload.videoPath)
     let existing: Record<string, unknown> = {}
@@ -316,6 +348,10 @@ ipcMain.handle(
       if (typeof payload.start === 'number') next.start = payload.start
       if (typeof payload.end === 'number') next.end = payload.end
       if (payload.end === null) next.end = undefined
+      if (typeof payload.title === 'string') next.title = payload.title
+      if (payload.title === null) delete next.title
+      if (typeof payload.note === 'string') next.note = payload.note
+      if (payload.note === null) delete next.note
       return next
     })
     const next = { ...existing, sections: updatedSections, updatedAt: Date.now() }
@@ -326,7 +362,17 @@ ipcMain.handle(
 
 ipcMain.handle(
   'analysis:updateShot',
-  (_event, payload: { videoPath?: string; createdAt?: number; start?: number | null; end?: number | null }) => {
+  (
+    _event,
+    payload: {
+      videoPath?: string
+      createdAt?: number
+      start?: number | null
+      end?: number | null
+      title?: string | null
+      note?: string | null
+    }
+  ) => {
     if (!payload?.videoPath || typeof payload.createdAt !== 'number') return null
     const jsonPath = analysisFilePath(payload.videoPath)
     let existing: Record<string, unknown> = {}
@@ -343,6 +389,10 @@ ipcMain.handle(
       if (typeof payload.start === 'number') next.start = payload.start
       if (typeof payload.end === 'number') next.end = payload.end
       if (payload.end === null) next.end = undefined
+      if (typeof payload.title === 'string') next.title = payload.title
+      if (payload.title === null) delete next.title
+      if (typeof payload.note === 'string') next.note = payload.note
+      if (payload.note === null) delete next.note
       return next
     })
     const next = { ...existing, shots: updatedShots, updatedAt: Date.now() }
