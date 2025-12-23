@@ -19,12 +19,16 @@
         @back="onWorkAreaBack"
       />
     </div>
+    <div class="preview-area">
+      预览区域
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
 import { computed, onMounted, onBeforeUnmount, ref, watch } from 'vue'
 import WorkArea from './WorkArea.vue'
+import ChartArea from './ChartArea.vue'
 
 const emit = defineEmits<{
   (e: 'back'): void
@@ -191,6 +195,8 @@ watch(
   padding: 0;
   box-sizing: border-box;
   background: #f7f7f7;
+  display: flex;
+  flex-direction: column;
 }
 
 .player-container {
@@ -227,4 +233,5 @@ watch(
   box-sizing: border-box;
   touch-action: none;
 }
+
 </style>
