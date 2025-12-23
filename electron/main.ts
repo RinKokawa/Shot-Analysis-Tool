@@ -67,6 +67,12 @@ const writeRecentProjects = (projects: RecentProject[]) => {
   fs.writeFileSync(recentProjectsFile(), JSON.stringify(projects, null, 2), 'utf-8')
 }
 
+const ensureDir = (dirPath: string) => {
+  if (!fs.existsSync(dirPath)) {
+    fs.mkdirSync(dirPath, { recursive: true })
+  }
+}
+
 function createWindow() {
   win = new BrowserWindow({
     icon: path.join(process.env.VITE_PUBLIC, 'electron-vite.svg'),
@@ -163,3 +169,23 @@ ipcMain.handle('recent-projects:toAppFileUrl', (_event, filePath: string) => {
   if (!filePath || typeof filePath !== 'string') return null
   return pathToFileURL(filePath).toString().replace('file:', 'appfile:')
 })
+
+ipcMain.handle(
+  'analysis:init',
+  (_event, payload: { videoPath?: string }) => {
+    if (!payload?.videoPath) return null
+    const baseName = path.basename(payload.videoPath, path.extname(payload.videoPath))
+    const safeName = baseName.replace(/[<>:"/\\|?*]/g, '_')
+    const dirPath = path.dirname(payload.videoPath)
+    ensureDir(dirPath)
+    const jsonPath = path.join(dirPath, `${safeName}.json`)
+    if (!fs.existsSync(jsonPath)) {
+      const data = {
+        createdAt: Date.now(),
+        notes: [],
+      }
+      fs.writeFileSync(jsonPath, JSON.stringify(data, null, 2), 'utf-8')
+    }
+    return jsonPath
+  }
+)

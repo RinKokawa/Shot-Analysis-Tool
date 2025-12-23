@@ -12,7 +12,11 @@
         ></video>
         <div class="resize-handle" @pointerdown="onResizeStart" />
       </div>
-      <WorkArea :width="workWidth" :height="videoHeight" />
+      <WorkArea
+        :width="workWidth"
+        :height="videoHeight"
+        :file-path="filePath"
+      />
     </div>
   </div>
 </template>
@@ -21,7 +25,7 @@
 import { computed, onMounted, onBeforeUnmount, ref } from 'vue'
 import WorkArea from './WorkArea.vue'
 
-defineProps<{ src: string }>()
+defineProps<{ src: string; filePath?: string | null }>()
 
 const videoRef = ref<HTMLVideoElement | null>(null)
 const aspectRatio = ref(16 / 9)

@@ -9,6 +9,7 @@ type RecentProject = {
 }
 
 const videoUrl = ref<string | null>(null)
+const currentFilePath = ref<string | null>(null)
 const recentProjects = ref<RecentProject[]>([])
 const contextMenuVisible = ref(false)
 const contextMenuX = ref(0)
@@ -48,6 +49,7 @@ const openRecent = async (item: RecentProject) => {
   if (typeof fileUrl !== 'string') return
   revokeIfBlob(videoUrl.value)
   videoUrl.value = fileUrl
+  currentFilePath.value = item.path
 }
 
 const onContextMenu = (event: MouseEvent, item: RecentProject) => {
@@ -88,6 +90,7 @@ const onFileChange = async (event: Event) => {
 
   revokeIfBlob(videoUrl.value)
   videoUrl.value = URL.createObjectURL(file)
+  currentFilePath.value = (file as File & { path?: string }).path || null
   await addRecentProject(file)
 }
 
@@ -136,7 +139,11 @@ onBeforeUnmount(() => {
     <input class="file-input" type="file" accept="video/*" @change="onFileChange" />
     选择视频
   </label>
-  <PlayerPage v-if="videoUrl" :src="videoUrl" />
+  <PlayerPage
+    v-if="videoUrl"
+    :src="videoUrl"
+    :file-path="currentFilePath"
+  />
 </template>
 
 

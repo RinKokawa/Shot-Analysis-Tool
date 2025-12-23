@@ -5,17 +5,33 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, watch } from 'vue'
 
 const props = defineProps<{
   width: number
   height: number
+  filePath?: string | null
 }>()
 
 const areaStyle = computed(() => ({
   width: `${props.width}px`,
   height: `${props.height}px`,
 }))
+
+const ensureAnalysisFile = async () => {
+  if (!props.filePath || !window.ipcRenderer?.invoke) return
+  await window.ipcRenderer.invoke('analysis:init', {
+    videoPath: props.filePath,
+  })
+}
+
+watch(
+  () => props.filePath,
+  () => {
+    ensureAnalysisFile()
+  },
+  { immediate: true }
+)
 </script>
 
 <style scoped>
