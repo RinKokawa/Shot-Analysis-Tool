@@ -1,11 +1,9 @@
 import { app, BrowserWindow, ipcMain, protocol } from 'electron'
-import { createRequire } from 'node:module'
 import { fileURLToPath } from 'node:url'
 import { pathToFileURL } from 'node:url'
 import path from 'node:path'
 import fs from 'node:fs'
 
-const require = createRequire(import.meta.url)
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
 protocol.registerSchemesAsPrivileged([
@@ -80,7 +78,7 @@ const analysisFilePath = (videoPath: string) => {
   return path.join(dirPath, `${safeName}.json`)
 }
 
-type RangeItem = { start: number; end?: number; createdAt: number }
+type RangeItem = { start: number; end: number | undefined; createdAt: number }
 
 const normalizeRange = (items: unknown): RangeItem[] => {
   if (!Array.isArray(items)) return []
@@ -109,7 +107,7 @@ const appendRange = (items: RangeItem[], start: number): RangeItem[] => {
   if (last && (last.end === undefined || last.end === null)) {
     last.end = start
   }
-  next.push({ start, createdAt: Date.now() })
+  next.push({ start, end: undefined, createdAt: Date.now() })
   return next
 }
 
@@ -267,6 +265,53 @@ ipcMain.handle(
     const sections = closeOpen(normalizeRange(existing.sections), payload.time)
     const shots = closeOpen(normalizeRange(existing.shots), payload.time)
     const next = { ...existing, acts, sections, shots, updatedAt: Date.now() }
+    fs.writeFileSync(jsonPath, JSON.stringify(next, null, 2), 'utf-8')
+    return next
+  }
+)
+
+ipcMain.handle(
+  'analysis:updateAct',
+  (_event, payload: { videoPath?: string; createdAt?: number; start?: number | null; end?: number | null }) => {
+    if (!payload?.videoPath || typeof payload.createdAt !== 'number') return null
+    const jsonPath = analysisFilePath(payload.videoPath)
+    let existing: Record<string, unknown> = {}
+    try {
+      const raw = fs.readFileSync(jsonPath, 'utf-8')
+      existing = JSON.parse(raw)
+    } catch {
+      return null
+    }
+    const acts = normalizeRange(existing.acts)
+    const updatedActs = acts.map((act) => {
+      if (act.createdAt !== payload.createdAt) return act
+      const next = { ...act }
+      if (typeof payload.start === 'number') next.start = payload.start
+      if (typeof payload.end === 'number') next.end = payload.end
+      if (payload.end === null) next.end = undefined
+      return next
+    })
+    const next = { ...existing, acts: updatedActs, updatedAt: Date.now() }
+    fs.writeFileSync(jsonPath, JSON.stringify(next, null, 2), 'utf-8')
+    return next
+  }
+)
+
+ipcMain.handle(
+  'analysis:deleteAct',
+  (_event, payload: { videoPath?: string; createdAt?: number }) => {
+    if (!payload?.videoPath || typeof payload.createdAt !== 'number') return null
+    const jsonPath = analysisFilePath(payload.videoPath)
+    let existing: Record<string, unknown> = {}
+    try {
+      const raw = fs.readFileSync(jsonPath, 'utf-8')
+      existing = JSON.parse(raw)
+    } catch {
+      return null
+    }
+    const acts = normalizeRange(existing.acts)
+    const nextActs = acts.filter((act) => act.createdAt !== payload.createdAt)
+    const next = { ...existing, acts: nextActs, updatedAt: Date.now() }
     fs.writeFileSync(jsonPath, JSON.stringify(next, null, 2), 'utf-8')
     return next
   }

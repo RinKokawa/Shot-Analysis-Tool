@@ -22,7 +22,15 @@
         @create-shot="onCreateShot"
       />
     </div>
-    <ChartArea :acts="acts" :sections="sections" :shots="shots" />
+    <ChartArea
+      :acts="acts"
+      :sections="sections"
+      :shots="shots"
+      @update-act="onUpdateAct"
+      @set-act-start="onSetActStart"
+      @set-act-end="onSetActEnd"
+      @delete-act="onDeleteAct"
+    />
   </div>
 </template>
 
@@ -233,6 +241,58 @@ const onCreateShot = async () => {
   })
   if (result && typeof result === 'object' && Array.isArray(result.shots)) {
     shots.value = result.shots as RangeItem[]
+  }
+}
+
+const onUpdateAct = async (payload: { createdAt: number; start?: number | null; end?: number | null }) => {
+  if (!props.filePath || !window.ipcRenderer?.invoke) return
+  const result = await window.ipcRenderer.invoke('analysis:updateAct', {
+    videoPath: props.filePath,
+    createdAt: payload.createdAt,
+    start: payload.start,
+    end: payload.end,
+  })
+  if (result && typeof result === 'object' && Array.isArray(result.acts)) {
+    acts.value = result.acts as RangeItem[]
+  }
+}
+
+const onSetActStart = async (createdAt: number) => {
+  if (!props.filePath || !window.ipcRenderer?.invoke) return
+  const video = videoRef.value
+  if (!video) return
+  const result = await window.ipcRenderer.invoke('analysis:updateAct', {
+    videoPath: props.filePath,
+    createdAt,
+    start: video.currentTime,
+  })
+  if (result && typeof result === 'object' && Array.isArray(result.acts)) {
+    acts.value = result.acts as RangeItem[]
+  }
+}
+
+const onSetActEnd = async (createdAt: number) => {
+  if (!props.filePath || !window.ipcRenderer?.invoke) return
+  const video = videoRef.value
+  if (!video) return
+  const result = await window.ipcRenderer.invoke('analysis:updateAct', {
+    videoPath: props.filePath,
+    createdAt,
+    end: video.currentTime,
+  })
+  if (result && typeof result === 'object' && Array.isArray(result.acts)) {
+    acts.value = result.acts as RangeItem[]
+  }
+}
+
+const onDeleteAct = async (createdAt: number) => {
+  if (!props.filePath || !window.ipcRenderer?.invoke) return
+  const result = await window.ipcRenderer.invoke('analysis:deleteAct', {
+    videoPath: props.filePath,
+    createdAt,
+  })
+  if (result && typeof result === 'object' && Array.isArray(result.acts)) {
+    acts.value = result.acts as RangeItem[]
   }
 }
 
