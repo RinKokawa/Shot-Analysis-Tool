@@ -1,58 +1,16 @@
 ﻿<template>
   <div class="chart-area">
-    <div
+    <ActItem
       v-for="(group, actIndex) in grouped.actGroups"
       :key="'act-' + group.act.createdAt + '-' + actIndex"
-      class="chart-section"
-    >
-      <div class="chart-title">
-        幕 {{ actIndex + 1 }}
-        <span class="chart-range">{{ formatRange(group.act.start, group.act.end) }}</span>
-        <button class="chart-delete" type="button" @click="emitDeleteAct(group.act.createdAt)">删除</button>
-      </div>
-      <div class="chart-controls">
-        <label class="chart-label">起</label>
-        <input
-          v-model="ensureEdit(group.act).start"
-          class="chart-input"
-          type="number"
-          step="0.01"
-          @blur="commitStart(group.act)"
-        />
-        <button class="chart-button" type="button" @click="emitSetStart(group.act.createdAt)">取当前</button>
-        <label class="chart-label">止</label>
-        <input
-          v-model="ensureEdit(group.act).end"
-          class="chart-input"
-          type="number"
-          step="0.01"
-          @blur="commitEnd(group.act)"
-        />
-        <button class="chart-button" type="button" @click="emitSetEnd(group.act.createdAt)">取当前</button>
-      </div>
-
-      <div v-if="group.sections.length === 0" class="chart-empty">暂无节</div>
-      <div
-        v-for="(sectionGroup, sectionIndex) in group.sections"
-        :key="'section-' + sectionGroup.section.createdAt + '-' + sectionIndex"
-        class="chart-subsection"
-      >
-        <div class="chart-subtitle">
-          节 {{ sectionIndex + 1 }}
-          <span class="chart-range">{{ formatRange(sectionGroup.section.start, sectionGroup.section.end) }}</span>
-        </div>
-        <div class="chart-shot-list">
-          <div
-            v-for="(shot, shotIndex) in sectionGroup.shots"
-            :key="'shot-' + shot.createdAt + '-' + shotIndex"
-            class="chart-shot-item"
-          >
-            Shot {{ shotIndex + 1 }} · {{ formatShotTime(shot) }}
-          </div>
-          <div v-if="sectionGroup.shots.length === 0" class="chart-empty">暂无 Shot</div>
-        </div>
-      </div>
-    </div>
+      :act="group.act"
+      :index="actIndex"
+      :sections="group.sections"
+      @update-act="emit('update-act', $event)"
+      @set-act-start="emit('set-act-start', $event)"
+      @set-act-end="emit('set-act-end', $event)"
+      @delete-act="emit('delete-act', $event)"
+    />
 
     <div
       v-if="grouped.orphanSectionGroups.length > 0 || grouped.orphanShots.length > 0"
@@ -104,10 +62,11 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed } from 'vue'
+import ActItem from './ActItem.vue'
 
 type RangeItem = { start?: number; end?: number; time?: number; createdAt: number }
-type NormalizedRange = { start: number; end?: number; createdAt: number }
+type NormalizedRange = { start: number; end: number | undefined; createdAt: number }
 
 type SectionGroup = { section: NormalizedRange; shots: NormalizedRange[] }
 type ActGroup = { act: NormalizedRange; sections: SectionGroup[] }
@@ -117,8 +76,6 @@ type GroupedData = {
   orphanSectionGroups: SectionGroup[]
   orphanShots: NormalizedRange[]
 }
-
-type EditState = { start: string; end: string }
 
 type UpdateActPayload = { createdAt: number; start?: number | null; end?: number | null }
 
@@ -186,62 +143,6 @@ const grouped = computed<GroupedData>(() => {
   return { actGroups, orphanSectionGroups, orphanShots }
 })
 
-const editMap = ref<Record<string, EditState>>({})
-
-const formatNumber = (value: number) => value.toFixed(2)
-
-const ensureEdit = (act: NormalizedRange): EditState => {
-  const key = String(act.createdAt)
-  if (!editMap.value[key]) {
-    editMap.value[key] = {
-      start: formatNumber(act.start),
-      end: act.end === undefined ? '' : formatNumber(act.end),
-    }
-  }
-  return editMap.value[key]
-}
-
-watch(
-  () => grouped.value.actGroups,
-  (groups) => {
-    for (const group of groups) {
-      const key = String(group.act.createdAt)
-      editMap.value[key] = {
-        start: formatNumber(group.act.start),
-        end: group.act.end === undefined ? '' : formatNumber(group.act.end),
-      }
-    }
-  },
-  { immediate: true }
-)
-
-const commitStart = (act: NormalizedRange) => {
-  const key = String(act.createdAt)
-  const raw = editMap.value[key]?.start ?? ''
-  const value = raw.trim()
-  if (!value) return
-  const numberValue = Number(value)
-  if (Number.isNaN(numberValue)) return
-  emit('update-act', { createdAt: act.createdAt, start: numberValue })
-}
-
-const commitEnd = (act: NormalizedRange) => {
-  const key = String(act.createdAt)
-  const raw = editMap.value[key]?.end ?? ''
-  const value = raw.trim()
-  if (!value) {
-    emit('update-act', { createdAt: act.createdAt, end: null })
-    return
-  }
-  const numberValue = Number(value)
-  if (Number.isNaN(numberValue)) return
-  emit('update-act', { createdAt: act.createdAt, end: numberValue })
-}
-
-const emitSetStart = (createdAt: number) => emit('set-act-start', createdAt)
-const emitSetEnd = (createdAt: number) => emit('set-act-end', createdAt)
-const emitDeleteAct = (createdAt: number) => emit('delete-act', createdAt)
-
 const formatTime = (time: number) => {
   const totalSeconds = Math.max(0, Math.floor(time))
   const minutes = Math.floor(totalSeconds / 60)
@@ -286,38 +187,6 @@ const formatShotTime = (shot: { start: number; end?: number }) => {
   align-items: center;
 }
 
-.chart-controls {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  margin: 6px 0 4px;
-}
-
-.chart-label {
-  color: #666666;
-}
-
-.chart-input {
-  width: 90px;
-  height: 24px;
-  padding: 0 6px;
-  border: 1px solid #c9c9c9;
-  border-radius: 0;
-}
-
-.chart-button,
-.chart-delete {
-  padding: 4px 8px;
-  border: 1px solid #c9c9c9;
-  border-radius: 0;
-  background: #ffffff;
-  cursor: pointer;
-}
-
-.chart-delete {
-  margin-left: auto;
-  color: #a40000;
-}
 
 .chart-subsection {
   margin-top: 8px;
