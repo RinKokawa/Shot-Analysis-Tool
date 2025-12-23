@@ -73,6 +73,13 @@ const ensureDir = (dirPath: string) => {
   }
 }
 
+const analysisFilePath = (videoPath: string) => {
+  const baseName = path.basename(videoPath, path.extname(videoPath))
+  const safeName = baseName.replace(/[<>:"/\\|?*]/g, '_')
+  const dirPath = path.dirname(videoPath)
+  return path.join(dirPath, `${safeName}.json`)
+}
+
 function createWindow() {
   win = new BrowserWindow({
     icon: path.join(process.env.VITE_PUBLIC, 'electron-vite.svg'),
@@ -174,11 +181,9 @@ ipcMain.handle(
   'analysis:init',
   (_event, payload: { videoPath?: string }) => {
     if (!payload?.videoPath) return null
-    const baseName = path.basename(payload.videoPath, path.extname(payload.videoPath))
-    const safeName = baseName.replace(/[<>:"/\\|?*]/g, '_')
     const dirPath = path.dirname(payload.videoPath)
+    const jsonPath = analysisFilePath(payload.videoPath)
     ensureDir(dirPath)
-    const jsonPath = path.join(dirPath, `${safeName}.json`)
     if (!fs.existsSync(jsonPath)) {
       const data = {
         createdAt: Date.now(),
@@ -187,5 +192,34 @@ ipcMain.handle(
       fs.writeFileSync(jsonPath, JSON.stringify(data, null, 2), 'utf-8')
     }
     return jsonPath
+  }
+)
+
+ipcMain.handle('analysis:read', (_event, payload: { videoPath?: string }) => {
+  if (!payload?.videoPath) return null
+  const jsonPath = analysisFilePath(payload.videoPath)
+  try {
+    const raw = fs.readFileSync(jsonPath, 'utf-8')
+    return JSON.parse(raw)
+  } catch {
+    return null
+  }
+})
+
+ipcMain.handle(
+  'analysis:update',
+  (_event, payload: { videoPath?: string; patch?: Record<string, unknown> }) => {
+    if (!payload?.videoPath || !payload.patch) return null
+    const jsonPath = analysisFilePath(payload.videoPath)
+    let existing: Record<string, unknown> = {}
+    try {
+      const raw = fs.readFileSync(jsonPath, 'utf-8')
+      existing = JSON.parse(raw)
+    } catch {
+      existing = { createdAt: Date.now(), notes: [] }
+    }
+    const next = { ...existing, ...payload.patch }
+    fs.writeFileSync(jsonPath, JSON.stringify(next, null, 2), 'utf-8')
+    return next
   }
 )

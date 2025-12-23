@@ -16,16 +16,21 @@
         :width="workWidth"
         :height="videoHeight"
         :file-path="filePath"
+        @back="onWorkAreaBack"
       />
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, onBeforeUnmount, ref } from 'vue'
+import { computed, onMounted, onBeforeUnmount, ref, watch } from 'vue'
 import WorkArea from './WorkArea.vue'
 
-defineProps<{ src: string; filePath?: string | null }>()
+const emit = defineEmits<{
+  (e: 'back'): void
+}>()
+
+const props = defineProps<{ src: string; filePath?: string | null }>()
 
 const videoRef = ref<HTMLVideoElement | null>(null)
 const aspectRatio = ref(16 / 9)
@@ -34,6 +39,7 @@ const videoHeight = ref(360)
 
 const minWidth = 240
 const viewportWidth = ref(window.innerWidth)
+const savedWidth = ref<number | null>(null)
 
 const workWidth = computed(() => Math.max(0, viewportWidth.value - videoWidth.value))
 
@@ -93,7 +99,11 @@ const onLoadedMetadata = () => {
   const video = videoRef.value
   if (!video || !video.videoWidth || !video.videoHeight) return
   aspectRatio.value = video.videoWidth / video.videoHeight
-  videoHeight.value = Math.round(videoWidth.value / aspectRatio.value)
+  if (savedWidth.value) {
+    applySavedSize()
+  } else {
+    videoHeight.value = Math.round(videoWidth.value / aspectRatio.value)
+  }
 }
 
 const onResizeStart = (event: PointerEvent) => {
@@ -119,11 +129,56 @@ const onResizeStart = (event: PointerEvent) => {
   const onUp = () => {
     window.removeEventListener('pointermove', onMove)
     window.removeEventListener('pointerup', onUp)
+    saveSize()
   }
 
   window.addEventListener('pointermove', onMove)
   window.addEventListener('pointerup', onUp)
 }
+
+const applySavedSize = () => {
+  if (!savedWidth.value) return
+  const maxVideoWidth = Math.max(minWidth, viewportWidth.value)
+  const clampedWidth = Math.max(minWidth, Math.min(maxVideoWidth, savedWidth.value))
+  videoWidth.value = clampedWidth
+  videoHeight.value = Math.round(clampedWidth / aspectRatio.value)
+}
+
+const loadSavedSize = async () => {
+  if (!props.filePath || !window.ipcRenderer?.invoke) return
+  const result = await window.ipcRenderer.invoke('analysis:read', {
+    videoPath: props.filePath,
+  })
+  if (result && typeof result === 'object' && typeof result.videoWidth === 'number') {
+    savedWidth.value = result.videoWidth
+    applySavedSize()
+  }
+}
+
+const saveSize = async () => {
+  if (!props.filePath || !window.ipcRenderer?.invoke) return
+  await window.ipcRenderer.invoke('analysis:update', {
+    videoPath: props.filePath,
+    patch: {
+      videoWidth: videoWidth.value,
+      videoHeight: videoHeight.value,
+      updatedAt: Date.now(),
+    },
+  })
+}
+
+const onWorkAreaBack = () => {
+  saveSize()
+  emit('back')
+}
+
+watch(
+  () => props.filePath,
+  () => {
+    loadSavedSize()
+  },
+  { immediate: true }
+)
 </script>
 
 <style scoped>

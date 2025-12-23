@@ -52,6 +52,12 @@ const openRecent = async (item: RecentProject) => {
   currentFilePath.value = item.path
 }
 
+const onBack = () => {
+  revokeIfBlob(videoUrl.value)
+  videoUrl.value = null
+  currentFilePath.value = null
+}
+
 const onContextMenu = (event: MouseEvent, item: RecentProject) => {
   event.preventDefault()
   contextMenuVisible.value = true
@@ -143,6 +149,7 @@ onBeforeUnmount(() => {
     v-if="videoUrl"
     :src="videoUrl"
     :file-path="currentFilePath"
+    @back="onBack"
   />
 </template>
 
