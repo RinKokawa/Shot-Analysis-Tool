@@ -61,6 +61,7 @@
       v-for="(sectionGroup, sectionIndex) in sections"
       :key="'section-' + sectionGroup.section.createdAt + '-' + sectionIndex"
       class="chart-subsection"
+      :class="{ 'chart-subsection-active': isSectionActive(sectionGroup) }"
     >
       <div class="chart-subtitle">
         节{{ sectionIndex + 1 }}
@@ -120,6 +121,7 @@
           v-for="(shot, shotIndex) in sectionGroup.shots"
           :key="'shot-' + shot.createdAt + '-' + shotIndex"
           class="chart-shot-item"
+          :class="{ 'chart-shot-active': isShotActive(shot) }"
         >
           <div class="chart-shot-title">Shot {{ shotIndex + 1 }} · {{ formatShotTime(shot) }}</div>
           <div class="chart-meta chart-meta-small">
@@ -382,6 +384,17 @@ const isActive = computed(() => {
   return props.currentTime >= props.act.start && (end === undefined || props.currentTime < end)
 })
 
+const isSectionActive = (sectionGroup: SectionGroup) => {
+  const start = sectionGroup.section.start
+  const end = sectionGroup.effectiveEnd ?? sectionGroup.section.end
+  return props.currentTime >= start && (end === undefined || props.currentTime < end)
+}
+
+const isShotActive = (shot: NormalizedRange) => {
+  const end = shot.end
+  return props.currentTime >= shot.start && (end === undefined || props.currentTime < end)
+}
+
 const emitDeleteAct = (createdAt: number) => emit('delete-act', createdAt)
 
 const formatTime = (time: number) => {
@@ -491,6 +504,10 @@ const formatShotTime = (shot: { start: number; end?: number }) => {
   padding-left: 12px;
 }
 
+.chart-subsection-active {
+  background: #e6f3ff;
+}
+
 .chart-subtitle {
   font-size: 12px;
   color: #333333;
@@ -515,6 +532,11 @@ const formatShotTime = (shot: { start: number; end?: number }) => {
   padding: 4px 6px;
   border: 1px solid #e0e0e0;
   background: #fafafa;
+}
+
+.chart-shot-active {
+  border-color: #6bbf7d;
+  background: #e6f7eb;
 }
 
 .chart-shot-title {
